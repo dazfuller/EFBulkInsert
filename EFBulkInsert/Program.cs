@@ -20,7 +20,7 @@ namespace EFBulkInsert
 
         private static void Main()
         {
-            var data = ReadDataFromInputFile(@"SampleData\\1K.xml");
+            var data = ReadDataFromInputFile(@"SampleData\\10K.xml");
             Console.WriteLine("Read {0} lines", data.Count);
 
             RunDataPersistance(PersistDataClassic, data);
