@@ -14,25 +14,27 @@ namespace EFBulkInsert
 {
     public static class Program
     {
-        private delegate void PerformPersistance(IEnumerable<Example> data);
+        private delegate void PerformPersistance(IList<Example> data);
 
         private const int CommitCount = 100;
 
         private static void Main()
         {
             var data = ReadDataFromInputFile(@"SampleData\\10K.xml");
-            Console.WriteLine("Read {0} lines", data.Count);
+            Console.WriteLine("Read {0:N0} lines", data.Count);
 
             RunDataPersistance(PersistDataClassic, data);
             RunDataPersistance(PersistDataClassicWithFrequentCommits, data);
             RunDataPersistance(PersistDataUsingFrequentCommits, data);
             RunDataPersistance(PersistDataUsingFrequentCommitsAndRecreateContext, data);
             RunDataPersistance(PersistDataUsingRange, data);
+            RunDataPersistance(PersistDataUsingRangeAndFrequentCommits, data);
+            RunDataPersistance(PersistDataUsingRangeFrequentCommitsAndRecreateContext, data);
             RunDataPersistance(PersistDataUsingBulkInsert, data);
             RunDataPersistance(PersistDataUsingSqlBulkCopy, data);
         }
 
-        private static void RunDataPersistance(PerformPersistance persistance, IEnumerable<Example> data)
+        private static void RunDataPersistance(PerformPersistance persistance, IList<Example> data)
         {
             ClearDatabase();
 
@@ -43,7 +45,7 @@ namespace EFBulkInsert
 
             var methodName = String.Format("{0}:", persistance.Method.Name);
 
-            Console.WriteLine("{0,-55}{1}", methodName, sw.ElapsedMilliseconds);
+            Console.WriteLine("{0,-60}{1}", methodName, sw.ElapsedMilliseconds);
         }
 
         private static void PersistDataUsingSqlBulkCopy(IEnumerable<Example> data)
@@ -130,6 +132,50 @@ namespace EFBulkInsert
 
                 context.Set<Example>().AddRange(data);
                 context.SaveChanges();
+            }
+        }
+
+        private static void PersistDataUsingRangeAndFrequentCommits(IList<Example> data)
+        {
+            using (var context = new ExampleContext())
+            {
+                context.Configuration.AutoDetectChangesEnabled = false;
+
+                var dataSize = data.Count;
+                for (var i = 0; i < dataSize; i += CommitCount)
+                {
+                    context.Set<Example>().AddRange(data.Skip(i).Take(CommitCount));
+                    context.SaveChanges();
+                }
+            }
+        }
+
+        private static void PersistDataUsingRangeFrequentCommitsAndRecreateContext(IList<Example> data)
+        {
+            ExampleContext context = null;
+
+            try
+            {
+                context = new ExampleContext();
+                context.Configuration.AutoDetectChangesEnabled = false;
+
+                var dataSize = data.Count;
+                for (var i = 0; i < dataSize; i += CommitCount)
+                {
+                    context.Set<Example>().AddRange(data.Skip(i).Take(CommitCount));
+                    context.SaveChanges();
+
+                    context.Dispose();
+                    context = new ExampleContext();
+                    context.Configuration.AutoDetectChangesEnabled = false;
+                }
+            }
+            finally
+            {
+                if (context != null)
+                {
+                    context.Dispose();
+                }
             }
         }
 
